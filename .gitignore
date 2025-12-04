@@ -166,3 +166,6 @@ cython_debug/
 
 # Pyenv
 .python-version
+
+# Scripts
+run_dividend_tracker.sh
