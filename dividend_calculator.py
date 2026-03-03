@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta, timezone
-from config import get_db, DIVIDEND_HISTORY, DIVIDEND_LOOKBACK_DAYS
+from config import get_postgres_conn, DIVIDEND_HISTORY, DIVIDEND_LOOKBACK_DAYS
 from portfolio_reader import get_portfolio_snapshot_at_date
 from dividend_fetcher import get_dividend_data
+import pandas as pd
+
 
 def process_ticker_dividends(ticker, quantity, currency):
     """Process dividends for a single ticker"""
-    db = get_db()
+    conn = get_postgres_conn()
     
     # Get dividend history
     dividend_history = get_dividend_data(ticker)
@@ -14,7 +16,6 @@ def process_ticker_dividends(ticker, quantity, currency):
         return
     
     # Check for recent ex-dividend dates (lookback window)
-    # Use timezone-aware datetime
     now_utc = datetime.now(timezone.utc)
     lookback_date = now_utc - timedelta(days=DIVIDEND_LOOKBACK_DAYS)
     
@@ -30,12 +31,13 @@ def process_ticker_dividends(ticker, quantity, currency):
             continue
         
         # Check if we already recorded this dividend
-        existing = db[DIVIDEND_HISTORY].find_one({
-            'ticker': ticker,
-            'ex_dividend_date': ex_date
-        })
+        ex_date_date = ex_date.date()
+        existing_df = pd.read_sql("""
+            SELECT id FROM dividend_history 
+            WHERE ticker = %s AND ex_dividend_date = %s
+        """, conn, params=(ticker, ex_date_date))
         
-        if existing:
+        if not existing_df.empty:
             continue
         
         # Get portfolio snapshot at ex-dividend date
@@ -46,17 +48,26 @@ def process_ticker_dividends(ticker, quantity, currency):
             dividend_amount = shares_held * div['amount']
             
             # Record dividend
-            db[DIVIDEND_HISTORY].insert_one({
-                'ticker': ticker,
-                'currency': currency,
-                'ex_dividend_date': ex_date,
-                'payment_date': ex_date + timedelta(days=7),  # Estimate payment date
-                'dividend_per_share': div['amount'],
-                'shares_held': shares_held,
-                'dividend_amount': dividend_amount,
-                'status': 'recorded',
-                'recorded_at': now_utc
-            })
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO dividend_history 
+                (ticker, currency, ex_dividend_date, payment_date, dividend_per_share, shares_held, dividend_amount, status, recorded_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                ticker,
+                currency,
+                ex_date_date,
+                ex_date_date + timedelta(days=7),
+                div['amount'],
+                shares_held,
+                dividend_amount,
+                'recorded',
+                now_utc
+            ))
+            conn.commit()
+            cursor.close()
             
             print(f"  [RECORDED] {ticker}: $${dividend_amount:.2f} ({shares_held} shares × $${div['amount']})")
+    
+    conn.close()
     

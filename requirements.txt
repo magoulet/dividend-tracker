@@ -1,3 +1,5 @@
 pymongo
 yfinance
 python-dateutil
+psycopg2-binary
+pandas
