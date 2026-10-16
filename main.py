@@ -5,6 +5,7 @@ Dividend Tracker - Main Orchestrator
 from datetime import datetime
 from portfolio_reader import get_recent_portfolio_tickers
 from dividend_calculator import process_ticker_dividends
+from dividend_forecaster import run_forecast
 from config import DIVIDEND_LOOKBACK_DAYS
 
 def main():
@@ -28,6 +29,14 @@ def main():
     
     print("\n" + "=" * 60)
     print("Dividend tracker complete!")
+    print("=" * 60)
+
+    # Forecast forward dividend income for current holdings
+    print("\n[3] Forecasting forward dividend income...")
+    run_forecast()
+
+    print("\n" + "=" * 60)
+    print("Done!")
     print("=" * 60)
 
 if __name__ == '__main__':

@@ -1,6 +1,17 @@
 import os
+import warnings
+
 import psycopg2
 from pymongo import MongoClient
+
+# pandas emits a UserWarning when handed a raw psycopg2 connection, because
+# only SQLAlchemy connections are officially tested. psycopg2 works fine here,
+# and SQLAlchemy is not usable on this interpreter, so silence just that warning.
+warnings.filterwarnings(
+    "ignore",
+    message="pandas only supports SQLAlchemy",
+    category=UserWarning,
+)
 
 # MongoDB Configuration (legacy, can be removed after migration)
 MONGO_HOST = os.getenv('MONGO_HOST', 'localhost')
@@ -25,6 +36,11 @@ CACHE_TTL_DAYS = 7
 
 # Dividend Fetch Window
 DIVIDEND_LOOKBACK_DAYS = 30
+
+# Dividend Forecast Settings
+FORECAST_HORIZON_MONTHS = 12       # months of forward income to project
+FORECAST_TTM_DAYS = 365            # trailing window used for the per-share run-rate
+FORECAST_SEASONALITY_YEARS = 5     # completed calendar years used for seasonality
 
 def get_db():
     """Get MongoDB database connection (legacy)"""
