@@ -38,9 +38,20 @@ CACHE_TTL_DAYS = 7
 DIVIDEND_LOOKBACK_DAYS = 30
 
 # Dividend Forecast Settings
-FORECAST_HORIZON_MONTHS = 12       # months of forward income to project
+FORECAST_HORIZON_MONTHS = 60       # months of forward income to project (5 years)
 FORECAST_TTM_DAYS = 365            # trailing window used for the per-share run-rate
 FORECAST_SEASONALITY_YEARS = 5     # completed calendar years used for seasonality
+
+# Per-share dividend growth model
+FORECAST_GROWTH_LOOKBACK_YEARS = 10  # max completed calendar years used to estimate growth
+FORECAST_GROWTH_MIN_YEARS = 2        # min completed years of positive dividends to derive a rate
+FORECAST_GROWTH_CLAMP_MIN = -0.05    # floor on the derived annual growth rate
+FORECAST_GROWTH_CLAMP_MAX = 0.10     # ceiling on the derived annual growth rate
+FORECAST_DEFAULT_GROWTH_RATE = 0.03  # fallback when history is insufficient
+FORECAST_GROWTH_OVERRIDES = {        # ticker -> fixed annual growth (highest precedence)
+    "JEPI": 0.0,                     # covered-call: distributions are variable, no trend
+    "SGOV": 0.0,                     # rate-tracking: follows short-term rates
+}
 
 def get_db():
     """Get MongoDB database connection (legacy)"""
