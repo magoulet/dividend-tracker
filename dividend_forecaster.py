@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-Dividend Forecaster - Tier 0 (TTM run-rate) + per-share growth
+Dividend Forecaster - TTM run-rate + per-share growth + DRIP
 
 Projects forward dividend income for current holdings using trailing
-twelve month (TTM) dividends per share. Shares are assumed constant.
+twelve month (TTM) dividends per share.
+
+Shares are no longer held constant: each year's dividends are reinvested
+into the same holding (per-position DRIP) at the current price, so shares
+compound at the dividend yield. Combined with per-share growth, income
+compounds from two sources.
 
 Growth: each ticker's forward dividends-per-share compound from year 1
 onward by an annual rate derived from its own long-run per-share dividend
@@ -170,8 +175,12 @@ def estimate_growth_rate(ticker, dividend_history, run_date):
     return min(max(raw, FORECAST_GROWTH_CLAMP_MIN), FORECAST_GROWTH_CLAMP_MAX), "derived"
 
 
-def forecast_ticker(ticker, shares, run_date):
-    """Build a monthly forward-income projection for a single ticker."""
+def forecast_ticker(ticker, shares, price, run_date):
+    """Build a monthly forward-income projection for a single ticker.
+
+    Per-position DRIP: each year's dividends are reinvested into the same
+    holding at the current price, so shares compound at the dividend yield.
+    """
     history = get_dividend_data(ticker)
     if not history:
         return None
@@ -186,25 +195,38 @@ def forecast_ticker(ticker, shares, run_date):
     months = [_add_months(start, i) for i in range(FORECAST_HORIZON_MONTHS)]
     weights = _seasonality_weights(history, run_date)
 
+    drip = bool(price and price > 0)
+    num_years = (FORECAST_HORIZON_MONTHS + 11) // 12
+
     rows = []
     year1_income = 0.0
     total_income = 0.0
-    for index, month in enumerate(months):
-        block = index // 12  # 0 = year 1, 1 = year 2, ...
-        # growth applies from year 1 onward
-        dps = dps_ttm * (1 + growth) ** (block + 1)
-        annual = shares * dps
-        weight = (1 / 12) if weights is None else weights[month.month]
-        amount = annual * weight
-        rows.append({"month": month, "dps": dps, "amount": amount})
-        if block == 0:
-            year1_income += amount
-        total_income += amount
+    shares_n = shares
+    for block in range(num_years):
+        # per-share growth applies from year 1 onward
+        dps_n = dps_ttm * (1 + growth) ** (block + 1)
+        annual = shares_n * dps_n
+        for month in months[block * 12:(block + 1) * 12]:
+            weight = (1 / 12) if weights is None else weights[month.month]
+            amount = annual * weight
+            rows.append({
+                "month": month,
+                "shares": shares_n,
+                "dps": dps_n,
+                "amount": amount,
+            })
+            if block == 0:
+                year1_income += amount
+            total_income += amount
+        if drip:
+            # reinvest this year's dividends into the same holding
+            shares_n *= 1 + dps_n / price
 
     return {
         "ticker": ticker,
         "shares": shares,
         "dps_forward": dps_ttm,
+        "drip_yield": (dps_ttm * (1 + growth) / price) if drip else 0.0,
         "ttm_payments": count,
         "growth_rate": growth,
         "growth_source": source,
@@ -237,7 +259,7 @@ def run_forecast(run_date=None):
             if shares <= 0:
                 continue
 
-            result = forecast_ticker(ticker, shares, run_date)
+            result = forecast_ticker(ticker, shares, holding.get("price"), run_date)
             if not result:
                 print(f"  [SKIP] {ticker}: no positive trailing dividends")
                 continue
@@ -247,14 +269,15 @@ def run_forecast(run_date=None):
             total_by_currency[currency] += result["total_income"]
             for row in result["rows"]:
                 rows.append((
-                    run_date, ticker, currency, row["month"], shares,
+                    run_date, ticker, currency, row["month"], row["shares"],
                     row["dps"], row["amount"], result["growth_rate"],
                     result["growth_source"],
                 ))
             print(
                 f"  [FORECAST] {ticker}: {shares:,.1f} sh x "
                 f"${result['dps_forward']:.4f} "
-                f"(g={result['growth_rate']:+.1%} {result['growth_source']}) "
+                f"(g={result['growth_rate']:+.1%} {result['growth_source']}, "
+                f"drip={result['drip_yield']:.1%}) "
                 f"= ${result['annual_income']:,.2f}/yr"
             )
 

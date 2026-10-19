@@ -25,6 +25,7 @@ def get_latest_portfolio_snapshot():
             holdings[ticker] = {
                 'ticker': ticker,
                 'quantity': holding['Qty'],
+                'price': holding.get('Price'),
                 'currency': 'USD',
                 'snapshot_date': usd_snapshot['date']
             }
@@ -45,6 +46,7 @@ def get_latest_portfolio_snapshot():
             holdings[ticker] = {
                 'ticker': ticker,
                 'quantity': holding['Qty'],
+                'price': holding.get('Price'),
                 'currency': 'CAD',
                 'snapshot_date': cad_snapshot['date']
             }
@@ -75,6 +77,7 @@ def get_portfolio_snapshot_at_date(target_date):
             holdings[ticker] = {
                 'ticker': ticker,
                 'quantity': holding['Qty'],
+                'price': holding.get('Price'),
                 'currency': 'USD',
                 'snapshot_date': usd_snapshot['date']
             }
@@ -95,6 +98,7 @@ def get_portfolio_snapshot_at_date(target_date):
             holdings[ticker] = {
                 'ticker': ticker,
                 'quantity': holding['Qty'],
+                'price': holding.get('Price'),
                 'currency': 'CAD',
                 'snapshot_date': cad_snapshot['date']
             }
